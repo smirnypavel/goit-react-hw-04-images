@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect } from 'react';
 import Searchbar from './Searchbar';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -8,84 +8,75 @@ import Button from 'components/Button';
 import Modal from './Modal';
 import Loader from 'components/Loader/Loader';
 
-export class App extends Component {
-  state = {
-    request: '',
-    response: [],
-    currentPage: 1,
-    loading: false,
-    error: null,
-    totalHits: 0,
-    currentImage: '',
-    showModal: false,
-  };
+export function App() {
+  const [isMounted, setIsMounted] = useState(true);
+  const [request, setRequest] = useState('');
+  const [response, setResponse] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [totalHits, setTotalHits] = useState(0);
+  const [currentImage, setCurrentImage] = useState('');
+  const [showModal, setShowModal] = useState(false);
 
-  componentDidUpdate(_, prevState) {
-    if (
-      prevState.request !== this.state.request ||
-      prevState.currentPage !== this.state.currentPage
-    ) {
-      this.fetchImages();
+  useEffect(() => {
+    if (isMounted) {
+      setIsMounted(false);
+    } else {
+      setLoading(true);
+      fetchImages(request, currentPage)
+        .then(response => {
+          if (response.hits.length === 0) {
+            throw new Error('No photos found');
+          }
+          setResponse(prevResponse => [...prevResponse, ...response.hits]);
+          setTotalHits(response.totalHits);
+        })
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false));
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request, currentPage]);
 
-  onOpenModal = image => {
-    this.setState({ showModal: true, currentImage: image });
+  const handleFormSubmit = query => {
+    setRequest(query);
+    setResponse([]);
+    setCurrentPage(1);
   };
 
-  onCloseModal = () => {
-    this.setState({ showModal: false, currentImage: '' });
+  const handleLoadMore = () => {
+    setCurrentPage(prevPage => prevPage + 1);
   };
 
-  fetchImages = () => {
-    const { currentPage, request } = this.state;
-    this.setState({ loading: true });
-    fetchImages(request, currentPage)
-      .then(response => {
-        if (response.hits.length === 0) {
-          throw new Error('No photos found');
-        }
-        this.setState(prevState => ({
-          response: [...prevState.response, ...response.hits],
-          totalHits: response.totalHits,
-        }));
-      })
-      .catch(error => this.setState({ error: error.message }))
-      .finally(() => this.setState({ loading: false }));
+  const handleOpenModal = image => {
+    setCurrentImage(image);
+    setShowModal(true);
   };
 
-  hanleLoadMore = () => {
-    this.setState(prevState => ({ currentPage: prevState.currentPage + 1 }));
+  const handleCloseModal = () => {
+    setCurrentImage('');
+    setShowModal(false);
   };
 
-  handleFormSubmit = request => {
-    this.setState({ request, response: [], currentPage: 1 });
-  };
+  const totalPage = response.length / totalHits;
 
-  render() {
-    const { error, loading, response, showModal, totalHits, currentImage } =
-      this.state;
-    const totalPage = response.length / totalHits;
-    return (
-      <>
-        <div>
-          <Searchbar onSubmit={this.handleFormSubmit} />
-          {loading && <Loader />}
-          {response.length !== 0 && (
-            <ImageGallery response={response} onOpenModal={this.onOpenModal} />
-          )}
-          {showModal && (
-            <Modal onClose={this.onCloseModal} currentImage={currentImage} />
-          )}
-          {totalPage < 1 && !loading && (
-            <Button onLoadMore={this.hanleLoadMore} />
-          )}
-          {error && <h1>{error}</h1>}
-          <ToastContainer />
-        </div>
-      </>
-    );
-  }
+  return (
+    <>
+      <div>
+        <Searchbar onSubmit={handleFormSubmit} />
+        {loading && <Loader />}
+        {response.length !== 0 && (
+          <ImageGallery response={response} onOpenModal={handleOpenModal} />
+        )}
+        {showModal && (
+          <Modal onClose={handleCloseModal} currentImage={currentImage} />
+        )}
+        {totalPage < 1 && !loading && <Button onLoadMore={handleLoadMore} />}
+        {error && <h1>{error}</h1>}
+        <ToastContainer />
+      </div>
+    </>
+  );
 }
 
 export default App;
